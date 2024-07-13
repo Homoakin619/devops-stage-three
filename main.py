@@ -4,23 +4,26 @@ from datetime import datetime
 import smtplib
 import logging
 from celery import Celery
-from email.mime.text import MIMEText
+from email.message import EmailMessage
 import os
 from dotenv import load_dotenv
 load_dotenv()
 
-celery_app = Celery('mailer',broker="pyamqp://guest@localhost//")
-celery_app.conf.result_backend="rpc://"
+
+
 
 log_file = "/var/log/messaging_system.log"
-
+broker = os.environ.get('BROKER_URL')
 sender = os.environ.get('SMTP_USER')
 port = os.environ.get('SMTP_PORT')
 password= os.environ.get('SMTP_PASSWORD')
 host = os.environ.get('SMTP_HOST')
 
 
+celery_app = Celery('main', broker=broker, backend="rpc://")
 app = FastAPI()
+
+
 
 def fileLogger(message):
     try:
@@ -30,10 +33,12 @@ def fileLogger(message):
         logging.error(fileException)
 
 
+
 @celery_app.task
 def sendmail_task(recipient: str):
     send_mail(recipient)
     return
+
 
 
 @app.get("/")
@@ -49,13 +54,13 @@ def base(sendmail: Optional[str] = None, talktome: Optional[str] = None):
 
 def send_mail(recipient: str):
     try:
-        logging.info('Mail sent successfully .......')
         with smtplib.SMTP_SSL(host=host,port=port) as mailer:
             
             mailer.login(user=sender,password=password)
             body = f'Hello {recipient}! You have a message from {sender}'
 
-            message = MIMEText(body)
+            message = EmailMessage()
+            message.set_content(body)
             message['Subject'] = "Random Mail"
             message['From'] = sender
             message['To'] = recipient
